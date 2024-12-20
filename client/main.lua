@@ -86,7 +86,8 @@ local function setupMap()
         setupInstructionalScaleform()
         createSpawnArea()
         while DoesCamExist(previewCam) do
-            DrawScaleformMovie_3d(scaleform, -24.86, -593.38, 91.8, -180.0, -180.0, -20.0, 0.0, 2.0, 0.0, 3.815, 2.27, 1.0, 2)
+            DrawScaleformMovie_3d(scaleform, -24.86, -593.38, 91.8, -180.0, -180.0, -20.0, 0.0, 2.0, 0.0, 3.815, 2.27,
+                1.0, 2)
 
             HideHudComponentThisFrame(6)
             HideHudComponentThisFrame(7)
@@ -223,9 +224,14 @@ local function inputHandler()
             local spawnData = spawns[currentButtonId]
 
             if spawnData.propertyId then
-                TriggerServerEvent('qbx_properties:server:enterProperty', { id = spawnData.propertyId, isSpawn = true })
+                if spawnData.appartment then
+                    TriggerServerEvent('Housing:server:CreateApartment', spawnData.propertyId)
+                else
+                    TriggerEvent('Housing:client:EnterHome', spawnData.propertyId)
+                end
             else
-                SetEntityCoords(cache.ped, spawnData.coords.x, spawnData.coords.y, spawnData.coords.z, false, false, false, false)
+                SetEntityCoords(cache.ped, spawnData.coords.x, spawnData.coords.y, spawnData.coords.z, false, false,
+                    false, false)
                 SetEntityHeading(cache.ped, spawnData.coords.w or 0.0)
             end
 
@@ -240,25 +246,37 @@ local function inputHandler()
     stopCamera()
 end
 
-RegisterNetEvent('qb-spawn:client:setupSpawns', function()
+RegisterNetEvent('qb-spawn:client:setupSpawns', function(_, new, appartments)
     spawns = {}
 
-    local lastCoords, lastPropertyId = lib.callback.await('qbx_spawn:server:getLastLocation')
-    spawns[#spawns + 1] = {
-        label = locale('last_location'),
-        coords = lastCoords,
-        propertyId = lastPropertyId
-    }
+    if new then
+        for k, v in pairs(appartments) do
+            local home = exports.bcs_housing:GetHome(k)
+            local entry = home.entry or home.properties.entry
+            spawns[#spawns + 1] = {
+                propertyId = k,
+                label = v.name,
+                coords = vec4(entry.x, entry.y, entry.z, entry.w),
+                appartment = true
+            }
+        end
+    else
+        local lastCoords, lastPropertyId = lib.callback.await('qbx_spawn:server:getLastLocation')
+        spawns[#spawns + 1] = {
+            label = locale('last_location'),
+            coords = lastCoords,
+            propertyId = lastPropertyId
+        }
 
-    for i = 1, #config.spawns do
-        spawns[#spawns + 1] = config.spawns[i]
+        for i = 1, #config.spawns do
+            spawns[#spawns + 1] = config.spawns[i]
+        end
+
+        local properties = lib.callback.await('qbx_spawn:server:getProperties')
+        for i = 1, #properties do
+            spawns[#spawns + 1] = properties[i]
+        end
     end
-
-    local properties = lib.callback.await('qbx_spawn:server:getProperties')
-    for i = 1, #properties do
-        spawns[#spawns + 1] = properties[i]
-    end
-
     Wait(400)
 
     managePlayer()
